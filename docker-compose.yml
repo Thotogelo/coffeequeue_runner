@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: coffeequeue
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persist database data
+      - pgdata:/var/lib/postgresql/data
+      # Mount your schema file into Postgres init directory
+      - ./createSchema.sql:/docker-entrypoint-initdb.d/createSchema.sql
+    networks:
+      - app-network
+
+  app:
+    build: .
+    container_name: springboot_app
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/coffeequeue
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+volumes:
+  pgdata:
+
+networks:
+  app-network:
+    driver: bridge

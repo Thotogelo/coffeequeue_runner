@@ -1,0 +1,65 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make scripts executable
+        run: chmod +x ./scripts/*.sh
+
+      - name: Build with Maven
+        run: mvn clean install
+
+      - name: Run tests
+        run: mvn test
+
+      - name: Build and push Docker image
+        run: ./scripts/docker-build-push.sh
+
+      - name: Deploy to Kubernetes
+        run: ./scripts/kind-deploy.sh
+
+      - name: Check cluster status
+        run: kubectl cluster-info
+
+      - name: Wait for pods to be ready
+        run: |
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/coffeequeue-app -n default || true
+
+      - name: Check pod status
+        run: |
+          kubectl get pods -n default
+          kubectl describe pods -n default
+
+      - name: Get logs for app pods
+        run: |
+          for pod in $(kubectl get pods -n default -l app=coffeequeue-app -o jsonpath="{.items[*].metadata.name}"); do
+            echo "Logs for pod: $pod"
+            kubectl logs $pod -n default || true
+          done
+
+      - name: Get logs for Postgres
+        run: |
+          echo "Postgres logs:"
+          kubectl logs deployment/postgres -n default || true
