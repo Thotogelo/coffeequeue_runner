@@ -7,7 +7,7 @@ param(
     [string]$DockerUsername = "thotogelo",
     [string]$Version = $(Get-Date -Format "yyyyMMddHHmm"),
     [string]$DockerfileContext = ".",
-    [string]$DockerPassword = $env:DOCKER_PASSWORD,
+    [string]$DockerPassword = "dckr_pat_mSXs6MfMuv5sm_Oucj1ztKoAVzY",
     [switch]$SkipLogin,
     [switch]$PushVersion,
     [switch]$SkipLatestPush
