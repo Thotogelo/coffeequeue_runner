@@ -2,11 +2,11 @@
 
 [CmdletBinding()]
 param(
+    [string]$ClusterName = "test",
     [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "default" }),
-    [string]$K8sDirectory = "./k8s",
-    [int]$PortForwardLocalPort = 8080,
-    [int]$PortForwardRemotePort = 80,
-    [switch]$SkipPortForward
+    [string]$ImageTag = "thotogelo/coffeequeue:latest",
+    [string]$Context = "minikube",
+    [string]$K8sDirectory = "./k8s"
 )
 
 Set-StrictMode -Version Latest
@@ -18,46 +18,48 @@ function Write-Section {
     Write-Host $Message -ForegroundColor Cyan
 }
 
-Write-Section "Ensuring namespace '$Namespace' exists..."
-try {
-    kubectl create namespace $Namespace | Out-Host
-} catch {
-    Write-Host "Namespace '$Namespace' already exists or could not be created: $($_.Exception.Message)" -ForegroundColor Yellow
+Write-Section "Ensuring minikube cluster '$ClusterName' exists..."
+
+# Minikube does not support multiple clusters by name. Use profiles.
+$profiles = minikube profile list --output=json | ConvertFrom-Json
+
+$profileExists = $profiles.valid | Where-Object { $_.Name -eq $ClusterName }
+
+if (-not $profileExists) {
+    Write-Host "Creating minikube cluster (profile '$ClusterName')..." -ForegroundColor Yellow
+    minikube start -p $ClusterName | Out-Host
+} else {
+    Write-Host "Reusing existing minikube profile '$ClusterName'." -ForegroundColor Green
 }
 
+Write-Section "Switching kubectl context to '$ClusterName'..."
+kubectl cluster-info --context $Context | Out-Host
+
+Write-Section "Loading image $ImageTag into minikube..."
+minikube image load $ImageTag -p $ClusterName | Out-Host
+
 Write-Section "Applying PostgreSQL manifests..."
-kubectl apply -f (Join-Path $K8sDirectory "postgres-db-init-script.yaml") -n $Namespace | Out-Host
-kubectl apply -f (Join-Path $K8sDirectory "postgres-deployment.yaml") -n $Namespace | Out-Host
-kubectl apply -f (Join-Path $K8sDirectory "postgres-service.yaml") -n $Namespace | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-db-init-script.yaml") | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-deployment.yaml") | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-service.yaml") | Out-Host
 
 Write-Section "Waiting for PostgreSQL deployment to become available..."
 kubectl wait --for=condition=available --timeout=120s deployment/postgres -n $Namespace | Out-Host
 
 Write-Section "Resetting postgres init job..."
 kubectl delete job postgres-init-job -n $Namespace --ignore-not-found=true | Out-Host
-kubectl apply -f (Join-Path $K8sDirectory "postgres-init-job.yaml") -n $Namespace | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-init-job.yaml") | Out-Host
 
 Write-Section "Waiting for database initialization job to complete..."
 kubectl wait --for=condition=complete --timeout=120s job/postgres-init-job -n $Namespace | Out-Host
 
 Write-Section "Deploying CoffeeQueue application..."
-kubectl apply -f (Join-Path $K8sDirectory "coffeequeue-hpa.yaml") -n $Namespace | Out-Host
-kubectl apply -f (Join-Path $K8sDirectory "coffeequeue-deployment.yaml") -n $Namespace | Out-Host
-kubectl apply -f (Join-Path $K8sDirectory "coffeequeue-service.yaml") -n $Namespace | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-hpa.yaml") | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-deployment.yaml") | Out-Host
+kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-service.yaml") | Out-Host
 
 Write-Section "Waiting for coffeequeue-app rollout to finish..."
 kubectl rollout status deployment/coffeequeue-app -n $Namespace | Out-Host
 
-if (-not $SkipPortForward) {
-    Write-Section "Starting port-forward on localhost:$PortForwardLocalPort -> service port $PortForwardRemotePort..."
-    $job = Start-Job -ScriptBlock {
-        param($ns, $localPort, $remotePort)
-        kubectl port-forward service/coffeequeue-service "$localPort`:$remotePort" -n $ns
-    } -ArgumentList $Namespace, $PortForwardLocalPort, $PortForwardRemotePort
-
-    Write-Host "Port-forward job started (Id=$($job.Id)). Use 'Receive-Job -Id $($job.Id)' to monitor or 'Stop-Job -Id $($job.Id)' to stop." -ForegroundColor Yellow
-}
-
 Write-Host ""
-Write-Host "Deployment to Minikube completed. Access the app at http://localhost:$PortForwardLocalPort" -ForegroundColor Green
-
+Write-Host "Deployment to minikube cluster '$ClusterName' completed successfully." -ForegroundColor Green
