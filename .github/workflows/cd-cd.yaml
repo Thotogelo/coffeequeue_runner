@@ -11,7 +11,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout code
@@ -24,8 +27,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Make scripts executable
-        run: chmod +x ./scripts/*.sh
+      - name: Allow script execution
+        run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
       - name: Build with Maven
         run: mvn clean install
@@ -34,18 +37,22 @@ jobs:
         run: mvn test
 
       - name: Build and push Docker image
-        run: ./scripts/docker-build-push.sh
+        run: ./scripts/docker-build-push.ps1
 
       - name: Deploy to Kubernetes
-        run: ./scripts/kind-deploy.sh
+        run: ./scripts/kind-deploy.ps1
 
       - name: Check cluster status
         run: kubectl cluster-info
 
       - name: Wait for pods to be ready
         run: |
-          echo "Waiting for pods to be ready..."
-          kubectl wait --for=condition=available --timeout=120s deployment/coffeequeue-app -n default || true
+          Write-Host "Waiting for pods to be ready..."
+          kubectl wait --for=condition=available --timeout=120s deployment/coffeequeue-app -n default
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "kubectl wait failed but continuing."
+            $global:LASTEXITCODE = 0
+          }
 
       - name: Check pod status
         run: |
@@ -54,12 +61,27 @@ jobs:
 
       - name: Get logs for app pods
         run: |
-          for pod in $(kubectl get pods -n default -l app=coffeequeue-app -o jsonpath="{.items[*].metadata.name}"); do
-            echo "Logs for pod: $pod"
-            kubectl logs $pod -n default || true
-          done
+          $podNames = kubectl get pods -n default -l app=coffeequeue-app -o jsonpath="{.items[*].metadata.name}"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($podNames)) {
+            Write-Warning "Unable to fetch app pod names, skipping log collection."
+            $global:LASTEXITCODE = 0
+          } else {
+            foreach ($pod in $podNames -split '\s+') {
+              if ([string]::IsNullOrWhiteSpace($pod)) { continue }
+              Write-Host "Logs for pod: $pod"
+              kubectl logs $pod -n default
+              if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Failed to fetch logs for $pod."
+                $global:LASTEXITCODE = 0
+              }
+            }
+          }
 
       - name: Get logs for Postgres
         run: |
-          echo "Postgres logs:"
-          kubectl logs deployment/postgres -n default || true
+          Write-Host "Postgres logs:"
+          kubectl logs deployment/postgres -n default
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to fetch Postgres logs."
+            $global:LASTEXITCODE = 0
+          }
