@@ -40,7 +40,7 @@ jobs:
         run: ./scripts/docker-build-push.ps1
 
       - name: Deploy to Kubernetes
-        run: ./scripts/kind-deploy.ps1
+        run: ./scripts/minikube-deploy.ps1
 
       - name: Check cluster status
         run: kubectl cluster-info
