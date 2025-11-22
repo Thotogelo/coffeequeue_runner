@@ -2,10 +2,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$ClusterName = "test",
+    [string]$ClusterName = "minikube",
     [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "default" }),
     [string]$ImageTag = "thotogelo/coffeequeue:latest",
-    [string]$Context = "minikube",
     [string]$K8sDirectory = "./k8s"
 )
 
@@ -33,7 +32,8 @@ if (-not $profileExists) {
 }
 
 Write-Section "Switching kubectl context to '$ClusterName'..."
-kubectl cluster-info --context $Context | Out-Host
+kubectl config use-context $ClusterName | Out-Host
+kubectl cluster-info | Out-Host
 
 Write-Section "Loading image $ImageTag into minikube..."
 minikube image load $ImageTag -p $ClusterName | Out-Host

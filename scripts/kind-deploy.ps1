@@ -5,7 +5,6 @@ param(
     [string]$ClusterName = "test",
     [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "default" }),
     [string]$ImageTag = "thotogelo/coffeequeue:latest",
-    [string]$Context = "kind-test",
     [string]$K8sDirectory = "./k8s"
 )
 
