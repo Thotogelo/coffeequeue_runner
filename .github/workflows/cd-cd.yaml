@@ -6,10 +6,6 @@ on:
     branches:
       - main
       - develop
-  pull_request:
-    branches:
-      - main
-      - develop
 
 jobs:
   build:
@@ -32,14 +28,30 @@ jobs:
       - name: Allow script execution
         run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
-      - name: Build with Maven
+      - name: Test/Build with Maven
         run: mvn clean install
 
-      - name: Run tests
-        run: mvn test
+  docker-image:
+    needs: build
+    uses: ./.github/workflows/registry-image.yml
+    with:
+      ref: ${{ github.sha }}
+    secrets: inherit
 
-      - name: Build and push Docker image
-        run: ./scripts/docker-build-push.ps1
+  deploy:
+    runs-on: self-hosted
+    needs:
+      - docker-image
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Retrieve Checkout code
+        uses: actions/checkout@v4
+
+      - name: Allow script execution
+        run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
       - name: Deploy to Kubernetes
         run: ./scripts/minikube-deploy.ps1
@@ -68,7 +80,7 @@ jobs:
             Write-Warning "Unable to fetch app pod names, skipping log collection."
             $global:LASTEXITCODE = 0
           } else {
-            foreach ($pod in $podNames -split '\s+') {
+            foreach ($pod in $podNames -split '\\s+') {
               if ([string]::IsNullOrWhiteSpace($pod)) { continue }
               Write-Host "Logs for pod: $pod"
               kubectl logs $pod -n default
