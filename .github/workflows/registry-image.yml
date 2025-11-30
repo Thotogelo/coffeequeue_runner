@@ -7,10 +7,16 @@ on:
       ref:
         required: false
         type: string
+    outputs:
+      image_tag:
+        description: Primary image tag produced by this workflow
+        value: ${{ jobs.build.outputs.image_tag }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.primary-tag.outputs.image_tag }}
     permissions:
       contents: read
       packages: write
@@ -39,6 +45,17 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+    - name: Capture primary image tag
+      id: primary-tag
+      shell: bash
+      run: |
+        first_tag=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+        if [ -z "$first_tag" ]; then
+          echo "Unable to determine image tag from docker/metadata-action output" >&2
+          exit 1
+        fi
+        echo "image_tag=$first_tag" >> "$GITHUB_OUTPUT"
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5

@@ -31,7 +31,7 @@ jobs:
       - name: Test/Build with Maven
         run: mvn clean install
 
-  docker-image:
+  registry_image:
     needs: build
     uses: ./.github/workflows/registry-image.yml
     with:
@@ -41,7 +41,7 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs:
-      - docker-image
+      - registry_image
     defaults:
       run:
         shell: pwsh
@@ -54,7 +54,14 @@ jobs:
         run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
       - name: Deploy to Kubernetes
-        run: ./scripts/minikube-deploy.ps1
+        env:
+          IMAGE_TAG: ${{ needs.registry_image.outputs.image_tag }}
+        run: |
+          if (-not $env:IMAGE_TAG) {
+            Write-Error "IMAGE_TAG output from registry-image workflow is empty."
+            exit 1
+          }
+          ./scripts/minikube-deploy.ps1 -ImageTag $env:IMAGE_TAG
 
       - name: Check cluster status
         run: kubectl cluster-info
@@ -63,10 +70,6 @@ jobs:
         run: |
           Write-Host "Waiting for pods to be ready..."
           kubectl wait --for=condition=available --timeout=120s deployment/coffeequeue-app -n default
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "kubectl wait failed but continuing."
-            $global:LASTEXITCODE = 0
-          }
 
       - name: Check pod status
         run: |
@@ -93,9 +96,18 @@ jobs:
 
       - name: Get logs for Postgres
         run: |
-          Write-Host "Postgres logs:"
-          kubectl logs deployment/postgres -n default
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to fetch Postgres logs."
-            $global:LASTEXITCODE = 0
+          $postgresPods = kubectl get pods -n default -l app=postgres -o jsonpath="{.items[*].metadata.name}"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($postgresPods)) {
+            Write-Warning "Unable to fetch Postgres pod names, skipping log collection."
+            exit 0
+          }
+
+          foreach ($pod in $postgresPods -split '\s+') {
+            if ([string]::IsNullOrWhiteSpace($pod)) { continue }
+            Write-Host "Postgres logs for pod: $pod"
+            kubectl logs $pod -n default
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Failed to fetch logs for Postgres pod $pod."
+              $global:LASTEXITCODE = 0
+            }
           }
