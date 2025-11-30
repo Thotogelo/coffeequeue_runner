@@ -53,6 +53,13 @@ jobs:
       - name: Allow script execution
         run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Deploy to Kubernetes
         env:
           IMAGE_TAG: ${{ needs.registry_image.outputs.image_tag }}
