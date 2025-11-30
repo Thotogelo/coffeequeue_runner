@@ -61,6 +61,14 @@ jobs:
             Write-Error "IMAGE_TAG output from registry-image workflow is empty."
             exit 1
           }
+          if (minikube status | Select-String "host: Running" -Quiet) {
+            Write-Host "Minikube is running...."
+          } else {
+            Write-Host "Minikube is NOT running....Exiting the workflow."
+            Write-Host "Exiting the workflow."
+            $global:LASTEXITCODE = 0
+            exit 1
+          }
           ./scripts/minikube-deploy.ps1 -ImageTag $env:IMAGE_TAG
 
       - name: Check cluster status
