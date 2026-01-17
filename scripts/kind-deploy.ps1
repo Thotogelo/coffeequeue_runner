@@ -33,8 +33,9 @@ if (-not ($clusterList | Where-Object { $_ -eq $ClusterName })) {
     Write-Host "Reusing existing kind cluster '$ClusterName'." -ForegroundColor Green
 }
 
-Write-Section "Switching kubectl context to '$ClusterName'..."
-kubectl cluster-info --context $ClusterName | Out-Host
+$Context = "kind-$ClusterName"
+Write-Section "Switching kubectl context to '$Context'..."
+kubectl cluster-info --context $Context | Out-Host
 
 Write-Section "Loading image $ImageTag into kind cluster..."
 kind load docker-image $ImageTag --name $ClusterName | Out-Host
