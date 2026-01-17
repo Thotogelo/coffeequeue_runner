@@ -72,7 +72,7 @@ jobs:
             Write-Error "IMAGE_TAG output from registry-image workflow is empty."
             exit 1
           }
-          $env:DEPLOYMENT_ENV_SCRIPT -ImageTag $env:IMAGE_TAG
+          & $env:DEPLOYMENT_ENV_SCRIPT -ImageTag $env:IMAGE_TAG
 
       - name: Check cluster status
         run: kubectl cluster-info
