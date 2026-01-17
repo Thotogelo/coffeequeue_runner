@@ -38,6 +38,20 @@ Write-Section "Switching kubectl context to '$Context'..."
 kubectl cluster-info --context $Context | Out-Host
 
 Write-Section "Loading image $ImageTag into kind cluster..."
+$hasImage = $false
+docker image inspect $ImageTag > $null 2>&1
+if ($LASTEXITCODE -eq 0) {
+    $hasImage = $true
+}
+
+if (-not $hasImage) {
+    Write-Host "Image $ImageTag not found locally. Attempting to pull from registry..." -ForegroundColor Yellow
+    docker pull $ImageTag | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to pull $ImageTag. If the image is private, authenticate (e.g. 'docker login') or build it locally before running this script." -ForegroundColor Red
+        throw "Image $ImageTag not available locally and docker pull failed."
+    }
+}
 kind load docker-image $ImageTag --name $ClusterName | Out-Host
 
 Write-Section "Applying PostgreSQL manifests..."
