@@ -1,0 +1,48 @@
+{{- if .Values.postgres.initJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "coffeequeue.postgresName" . }}-init
+  labels:
+    {{- include "coffeequeue.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  ttlSecondsAfterFinished: {{ .Values.postgres.initJob.ttlSecondsAfterFinished }}
+  backoffLimit: {{ .Values.postgres.initJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "coffeequeue.postgresSelectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: db-init-script
+          configMap:
+            name: {{ include "coffeequeue.postgresConfigName" . }}
+      containers:
+        - name: postgres-init
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Waiting for PostgreSQL to be ready..."
+              until pg_isready -h {{ include "coffeequeue.postgresServiceName" . }} -p {{ .Values.postgres.service.port }} -U {{ .Values.postgres.auth.user }}; do
+                echo "Waiting for database to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready. Initializing database schema..."
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h {{ include "coffeequeue.postgresServiceName" . }} -U $POSTGRES_USER -d $POSTGRES_DB -f /scripts/createSchema.sql
+              echo "Database initialization completed successfully!"
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.auth.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.auth.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.auth.database | quote }}
+          volumeMounts:
+            - name: db-init-script
+              mountPath: /scripts
+{{- end }}

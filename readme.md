@@ -55,6 +55,27 @@ java -jar ./target/coffeequeue-0.0.1-SNAPSHOT.jar \
   --spring.datasource.password=postgres
 ```
 
+## Kubernetes (Helm)
+
+The Kubernetes manifests are packaged as a Helm chart in `charts/coffeequeue`.
+
+Install the chart:
+```
+helm install coffeequeue ./charts/coffeequeue
+```
+
+Package the chart:
+```
+helm package ./charts/coffeequeue
+```
+
+Defaults use a Postgres init job. To disable it or enable the init container:
+```
+helm install coffeequeue ./charts/coffeequeue \
+  --set postgres.initJob.enabled=false \
+  --set postgres.initContainer.enabled=true
+```
+
 ### 4. API Endpoints
 The Coffee Queue application exposes the following REST endpoints:
 

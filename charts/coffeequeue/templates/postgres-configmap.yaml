@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "coffeequeue.postgresConfigName" . }}
+  labels:
+    {{- include "coffeequeue.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+data:
+  createSchema.sql: |
+{{ .Files.Get "files/createSchema.sql" | indent 4 }}

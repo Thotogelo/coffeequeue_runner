@@ -21,6 +21,13 @@ spec:
       initContainers:
         - name: init-db
           image: postgres:16
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
           command:
             [
               "sh",
@@ -40,6 +47,13 @@ spec:
       containers:
         - name: postgres
           image: postgres:16
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           ports:
             - containerPort: 5432
           env:

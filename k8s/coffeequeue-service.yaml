@@ -10,17 +10,3 @@ spec:
       port: 80
       targetPort: 8080
   type: NodePort
-#  type: LoadBalancer  # Change to NodePort for local clusters like Minikube
-#apiVersion: v1
-#kind: Service
-#metadata:
-#  name: title
-#spec:
-#  selector:
-#    app: title
-#  ports:
-#    - protocol: TCP
-#      port: 80
-#      targetPort: 8080
-#  type: NodePort
-#
