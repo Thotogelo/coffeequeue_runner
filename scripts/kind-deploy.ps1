@@ -6,7 +6,7 @@ param(
     [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "default" }),
     [string]$ImageTag = "ghcr.io/thotogelo/coffeequeue_runner:develop",
     [string]$HelmDeployment = "./charts/coffeequeue",
-    [string]$ReleaseName = "coffeequeue_runner"
+    [string]$ReleaseName = "coffeequeue-runner"
 )
 
 Set-StrictMode -Version Latest
@@ -64,6 +64,8 @@ if ($lastColon -gt -1) {
 }
 
 Write-Section "Deploying CoffeeQueue with Helm..."
+$ReleaseName = $ReleaseName.ToLowerInvariant() -replace "[^a-z0-9-]", "-"
+$ReleaseName = $ReleaseName.Trim("-")
 helm upgrade --install $ReleaseName $HelmDeployment `
     --namespace $Namespace `
     --create-namespace `
