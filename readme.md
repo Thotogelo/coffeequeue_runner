@@ -3,6 +3,9 @@
 A simple Spring Boot application that simulates an office coffee queue.  
 Orders move automatically from `NEW → BREWING → DONE` at scheduled intervals.
 
+This project exists to demonstrate capabilities in managing CI/CD pipelines and core DevOps skills (automation, containerization, and Kubernetes deployment).  
+GitHub Packages: https://github.com/thotogelo/coffeequeue_runner/pkgs/container/coffeequeue_runner
+
 ---
 
 ## PostgreSQL Database
