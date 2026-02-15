@@ -4,8 +4,9 @@
 param(
     [string]$ClusterName = "dev",
     [string]$Namespace = $(if ($env:NAMESPACE) { $env:NAMESPACE } else { "default" }),
-    [string]$ImageTag = "thotogelo/coffeequeue:latest",
-    [string]$K8sDirectory = "./k8s"
+    [string]$ImageTag = "ghcr.io/thotogelo/coffeequeue_runner:develop",
+    [string]$HelmDeployment = "./charts/coffeequeue",
+    [string]$ReleaseName = "coffeequeue_runner"
 )
 
 Set-StrictMode -Version Latest
@@ -54,28 +55,22 @@ if (-not $hasImage) {
 }
 kind load docker-image $ImageTag --name $ClusterName | Out-Host
 
-Write-Section "Applying PostgreSQL manifests..."
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-db-init-script.yaml") | Out-Host
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-deployment.yaml") | Out-Host
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-service.yaml") | Out-Host
+$ImageRepo = $ImageTag
+$ImageVersion = "latest"
+$lastColon = $ImageTag.LastIndexOf(":")
+if ($lastColon -gt -1) {
+    $ImageRepo = $ImageTag.Substring(0, $lastColon)
+    $ImageVersion = $ImageTag.Substring($lastColon + 1)
+}
 
-Write-Section "Waiting for PostgreSQL deployment to become available..."
-kubectl wait --for=condition=available --timeout=120s deployment/postgres -n $Namespace | Out-Host
-
-Write-Section "Resetting postgres init job..."
-kubectl delete job postgres-init-job -n $Namespace --ignore-not-found=true | Out-Host
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "postgres-init-job.yaml") | Out-Host
-
-Write-Section "Waiting for database initialization job to complete..."
-kubectl wait --for=condition=complete --timeout=120s job/postgres-init-job -n $Namespace | Out-Host
-
-Write-Section "Deploying CoffeeQueue application..."
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-hpa.yaml") | Out-Host
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-deployment.yaml") | Out-Host
-kubectl apply -n $Namespace -f (Join-Path $K8sDirectory "coffeequeue-service.yaml") | Out-Host
-
-Write-Section "Waiting for coffeequeue-app rollout to finish..."
-kubectl rollout status deployment/coffeequeue-app -n $Namespace | Out-Host
+Write-Section "Deploying CoffeeQueue with Helm..."
+helm upgrade --install $ReleaseName $HelmDeployment `
+    --namespace $Namespace `
+    --create-namespace `
+    --set app.image.repository=$ImageRepo `
+    --set app.image.tag=$ImageVersion `
+    --wait `
+    --timeout 120s | Out-Host
 
 Write-Host ""
 Write-Host "Deployment to kind cluster '$ClusterName' completed successfully." -ForegroundColor Green

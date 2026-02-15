@@ -4,8 +4,8 @@ fullnameOverride: ""
 app:
   replicaCount: 2
   image:
-    repository: thotogelo/coffeequeue
-    tag: latest
+    repository: ghcr.io/thotogelo/coffeequeue_runner
+    tag: develop
     pullPolicy: IfNotPresent
   service:
     type: NodePort
